@@ -126,9 +126,6 @@ function clone_and_check_dependencies {
     return 1
   fi
 
-  if ! check_vendorsetup "$dest_dir"; then
-    return 1
-  fi
 
   process_dependencies "$dest_dir"
 }
