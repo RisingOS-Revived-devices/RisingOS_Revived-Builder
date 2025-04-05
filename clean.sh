@@ -12,27 +12,42 @@ rm -rf out/error*.log
 rm -rf out/target/product/$CODENAME
 rm -rf vendor/risingOTA
 
-wipe_cloned_repositories() {
-    local repositories_file="cloned_repositories.txt"
+wipe_rising_dependencies() {
+    echo "Attempting to nuke RisingOS dependencies..."
 
-    if [[ -f "$repositories_file" ]]; then
-        echo "Wiping directories listed in: $repositories_file"
-        while IFS= read -r path; do
-            if [[ -d "$path" ]]; then
-                echo "Removing directory: $path"
-                rm -rf "$path"
-                repo_path=".repo/project/$(basename "$path").git"
-                if [[ -d "$repo_path" ]]; then
-                    rm -rf "$repo_path"
-                fi
-            else
-                echo "Directory does not exist: $path"
-            fi
-        done < "$repositories_file"
+    dependency_file_device="device/$BRAND/$CODENAME/rising.dependencies"
+    dependency_file_top_level="rising.dependencies"
+
+    if [[ -f "$dependency_file_device" ]]; then
+        echo "Found dependency file in device tree: $dependency_file_device"
+        dependencies=$(cat "$dependency_file_device")
+    elif [[ -f "$dependency_file_top_level" ]]; then
+        echo "Found dependency file in top-level directory: $dependency_file_top_level"
+        dependencies=$(cat "$dependency_file_top_level")
     else
-        echo "No cloned_repositories.txt file found."
+        echo "Error: rising.dependencies not found in device tree or top-level."
+        exit 1
     fi
-}
 
-wipe_cloned_repositories
-rm -rf cloned_repositories.txt
+    IFS=$'\n' read -d '' -r -a dependency_array <<< "$dependencies"
+
+    for dependency_json in "${dependency_array[@]}"; do
+        if [[ -n "$dependency_json" ]]; then
+            target_path=$(echo "$dependency_json" | jq -r '.target_path')
+            if [[ -n "$target_path" ]]; then
+                full_path="/home/arman/rising-ci/$target_path"
+                echo "Removing directory: $full_path"
+                if [[ -d "$full_path" ]]; then
+                    rm -rf "$full_path"
+                    repo_git_path=".repo/project/$(basename "$full_path").git"
+                    if [[ -d "$repo_git_path" ]]; then
+                        rm -rf "$repo_git_path"
+                    fi
+                else
+                    echo "Warning: Directory not found: $full_path"
+                fi
+            fi
+        fi
+    done
+    echo "Finished nuking RisingOS dependencies."
+}

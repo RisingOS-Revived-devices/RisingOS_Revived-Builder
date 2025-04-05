@@ -176,6 +176,17 @@ jobs:
           echo "RECOVERY_IMG_LINK=$(cat $GITHUB_ENV | grep -oE "RECOVERY_IMG_LINK=[^ ]*")" >> $GITHUB_OUTPUT
         id: gofile_links
 
+      - name: Upload Build Files to Gofile
+        id: upload_error-log
+        if: ${{ failure() }}
+        run: bash error-log_upload.sh
+
+      - name: Capture error.log Gofile Link
+        if: ${{ steps.upload_error-log.outcome == 'success' }}
+        run: |
+          echo "ERROR_LOG_LINK=$(cat $GITHUB_ENV | grep -oE "ERROR_LOG_LINK=[^ ]*")" >> $GITHUB_OUTPUT
+        id: gofile_error-log_link
+
       - name: Post-Cleanup
         if: ${{ always() }}
         run: bash clean.sh
@@ -195,13 +206,20 @@ jobs:
 
       - name: Notify Build Failure (Telegram)
         if: ${{ failure() }}
-        run: bash telegram_notify.sh "Build for ${{ inputs.CODENAME }} failed." "$BOT_TOKEN" "$CHAT_ID" "$THREAD_ID" "❌"
+        run: |
+          ERROR_STEP_NUMBER="12"
+
+          ERROR_LOG_LINK="https://github.com/${{ github.repository }}/actions/runs/${RUN_ID}/job/${JOB_ID}#step:${ERROR_STEP_NUMBER}:1"
+          MESSAGE3="❌ Build for ${{ inputs.CODENAME }} failed.
+          🔗 Download error.log: [link](${LOG_LINK})"
+
+          bash telegram_notify.sh "$MESSAGE3" "$BOT_TOKEN" "$CHAT_ID" "$THREAD_ID"
 
       - name: Notify Build Cancelled
         if: ${{ cancelled() }}
         run: |
-          MESSAGE3="🚫 Build for ${{ inputs.CODENAME }} is cancelled!
+          MESSAGE4="🚫 Build for ${{ inputs.CODENAME }} is cancelled!
           Workflow: [link](${WORKFLOW_RUN_URL})"
 
-          bash telegram_notify.sh "$MESSAGE3" "$BOT_TOKEN" "$CHAT_ID" "$THREAD_ID"
+          bash telegram_notify.sh "$MESSAGE4" "$BOT_TOKEN" "$CHAT_ID" "$THREAD_ID"
 
